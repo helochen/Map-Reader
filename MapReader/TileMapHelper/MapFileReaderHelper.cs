@@ -18,7 +18,7 @@ namespace MapReader
             ReadGameMap readGameMap = new ReadGameMap();
 
             //readGameMap.LoadMap(@"E:\unity\project\2D TileMap Dev\Assets\Res\1002.map");
-            readGameMap.LoadMap(@"D:\海外侠客岛\wdf\scene\1002.map");
+            readGameMap.LoadMap(@"G:\0.perinalll\海外侠客岛\wdf\scene\1002.map");
 
             uint UnitTotal = readGameMap.m_SubMapTotal;
             uint m_MapWidth = readGameMap.m_MapWidth;
@@ -46,14 +46,21 @@ namespace MapReader
                 uint TempSize = 0;
                 byte[] jpgdata;
 
-                // 处理地图JPEG数据为标准的JPEG数据
-                jpgdata = this.MapHandler(jd.Data, jd.Size, out TempSize);
+				// 处理地图JPEG数据为标准的JPEG数据
+				if (jd.direct)
+				{
+					jpgdata = jd.Data;
+					TempSize = jd.Size;
+				}
+				else { 
+					jpgdata = this.MapHandler(jd.Data, jd.Size, out TempSize);
+				}
 
 				if (true)
 				{
-					using (FileStream fileStream = File.Create(@"E:\test\"+i+@".jpg", (int)TempSize, FileOptions.WriteThrough))
+					using (FileStream fileStream = File.Create(@"E:\test\"+i+@".jpg", (int)jd.Size, FileOptions.WriteThrough))
 					{
-						fileStream.Write(jpgdata, 0, (int)TempSize);
+						fileStream.Write(jd.Data, 0, (int)jd.Size);
 						fileStream.Flush();
 					}
 				}

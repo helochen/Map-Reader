@@ -1,9 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace MapReader
 {
@@ -32,6 +29,7 @@ namespace MapReader
 
         public uint m_PointHeight; // 坐标的高度
         public uint m_PointWidth; // 坐标的宽度
+
         public uint m_UnitIndexNum { get; private set; } // 单元的索引位置
         public uint[] m_UnitOffsetList { get; private set; } // 单元的偏移列表
         public uint m_MaskTemp { get; private set; } // MASK临时变量
@@ -133,6 +131,26 @@ namespace MapReader
                     fs.Read(buf, 0, 4);
                     this.m_UnitOffsetList[i] = BitConverter.ToUInt32(buf);
                 }
+                // MASK遮罩列表位置
+                fs.Read(buf, 0, 4);
+                int maskPos = BitConverter.ToInt32(buf);
+                fs.Seek(maskPos, SeekOrigin.Begin); // 移动到mask位置
+                // 遮罩的数据长度
+                fs.Read(buf, 0, 4);
+                int maskLength = BitConverter.ToInt32(buf);
+                Console.WriteLine("遮罩层的数据量：{0}", maskLength);
+               
+                if (maskLength > 0)
+                {
+                    uint[] TmpMaskList = new uint[maskLength];
+                    for (int i = 0; i < maskLength; i++)
+                    {
+                        fs.Read(buf, 0, 4);
+                        TmpMaskList[i] = BitConverter.ToUInt32(buf);
+                    }
+                }
+
+
                 // TODO 仅大话3地图使用
 
 
@@ -229,6 +247,10 @@ namespace MapReader
                                 Result = this.ReadEND(fs, header.Flag, header.Size);
                                 loop = false;
                                 break;
+                            // DIRECT jpeg图形
+                            case 0x4A504732:
+                                Result = this.ReadDirect(fs, header.Flag, header.Size);
+                                break;
                             // 默认处理
                             default:
                                 Console.WriteLine("图形问题：{0}. {1}", header.Flag, header.Size);
@@ -242,6 +264,38 @@ namespace MapReader
                 return Result;
             }
         }
+
+        private bool ReadDirect(FileStream fs, uint flag, uint Size)
+        {
+            if (flag == 0x4A504732)
+            {
+                m_jpeg.Data = new byte[Size]; // 分配单元数据的内存空间
+                fs.Read(m_jpeg.Data, 0, (int)Size); // 读取单元JPEG的数据
+                m_jpeg.Size = Size;
+                m_jpeg.direct = true;
+                // 测试读取后面的字节信息
+                uint header = FileByteReaderUtil.ReadUint32(fs);
+                uint size = FileByteReaderUtil.ReadUint32(fs);
+                Console.WriteLine("读取到CELL的数据： {0} , {1}", header, size);
+                fs.Seek(size, SeekOrigin.Current);
+
+                header = FileByteReaderUtil.ReadUint32(fs);
+                size = FileByteReaderUtil.ReadUint32(fs);
+                Console.WriteLine("读取到GIRB的数据： {0} , {1}", header, size);
+                fs.Seek(size, SeekOrigin.Current);
+
+                // 结束字节信息
+                uint end = FileByteReaderUtil.ReadUint32(fs);
+                Console.WriteLine("结束信息:{0}", end);
+            }
+            else
+            {
+                Console.Write("直接JPEG图片标志错误！\n");
+                return false;
+            }
+            return true;
+        }
+
         // 读取地图END 的数据
         private bool ReadEND(FileStream fs, uint Flag, uint Size)
         {
@@ -339,8 +393,9 @@ namespace MapReader
                 m_jpeg.Data = new byte[Size]; // 分配单元数据的内存空间
                 fs.Read(m_jpeg.Data, 0, (int)Size);// 读取单元JPEG的数据
                 m_jpeg.Size = Size;
+                m_jpeg.direct = false;
                 // 测试读取后面的字节信息
-                uint header =  FileByteReaderUtil.ReadUint32(fs);
+                uint header = FileByteReaderUtil.ReadUint32(fs);
                 uint size = FileByteReaderUtil.ReadUint32(fs);
                 Console.WriteLine("读取到CELL的数据： {0} , {1}", header, size);
                 fs.Seek(size, SeekOrigin.Current);
@@ -419,6 +474,7 @@ namespace MapReader
     {
         public uint Size; // 数据的大小
         public byte[] Data; // 数据内容
+        public bool direct; // 是否需要特殊处理标识
     }
 
 
