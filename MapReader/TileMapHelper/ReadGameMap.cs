@@ -148,6 +148,21 @@ namespace MapReader
                         fs.Read(buf, 0, 4);
                         TmpMaskList[i] = BitConverter.ToUInt32(buf);
                     }
+                    // 读取MASK数据
+                    for (int idx = 0; idx < 3; idx++)
+                    {
+                        fs.Seek(TmpMaskList[idx], SeekOrigin.Begin);
+                        Console.WriteLine("数据偏移量:{0} ", TmpMaskList[idx]);
+
+                        for (int i = 0; i < 5; i++)
+                        {
+                            fs.Read(buf, 0, 4);
+                            Console.Write("数据：{0} ", BitConverter.ToUInt32(buf));
+                        }
+                        Console.WriteLine();
+                    }
+                    
+
                 }
 
 
@@ -483,5 +498,14 @@ namespace MapReader
     {
         public uint Flag; // 单元标志
         public uint Size; // 单元大小
+    }
+
+    // MASK的数据结构（推测）
+    public struct MaskData {
+        public int Width;
+        public int Height;
+        public int X;
+        public int Y;
+        public int Size;
     }
 }

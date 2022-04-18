@@ -58,9 +58,9 @@ namespace MapReader
 
 				if (true)
 				{
-					using (FileStream fileStream = File.Create(@"E:\test\"+i+@".jpg", (int)jd.Size, FileOptions.WriteThrough))
+					using (FileStream fileStream = File.Create(@"E:\test\"+i+@".jpg", (int)TempSize, FileOptions.WriteThrough))
 					{
-						fileStream.Write(jd.Data, 0, (int)jd.Size);
+						fileStream.Write(jpgdata, 0, (int)TempSize);
 						fileStream.Flush();
 					}
 				}
