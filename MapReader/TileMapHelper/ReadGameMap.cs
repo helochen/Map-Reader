@@ -139,7 +139,7 @@ namespace MapReader
                 fs.Read(buf, 0, 4);
                 int maskLength = BitConverter.ToInt32(buf);
                 Console.WriteLine("遮罩层的数据量：{0}", maskLength);
-               
+
                 if (maskLength > 0)
                 {
                     uint[] TmpMaskList = new uint[maskLength];
@@ -149,19 +149,34 @@ namespace MapReader
                         TmpMaskList[i] = BitConverter.ToUInt32(buf);
                     }
                     // 读取MASK数据
-                    for (int idx = 0; idx < 3; idx++)
+                    for (int idx = 0; idx < 1; idx++)
                     {
                         fs.Seek(TmpMaskList[idx], SeekOrigin.Begin);
                         Console.WriteLine("数据偏移量:{0} ", TmpMaskList[idx]);
 
-                        for (int i = 0; i < 5; i++)
-                        {
-                            fs.Read(buf, 0, 4);
-                            Console.Write("数据：{0} ", BitConverter.ToUInt32(buf));
-                        }
-                        Console.WriteLine();
+                        MaskData mask = new MaskData();
+
+                        fs.Read(buf, 0, 4);
+                        mask.X = BitConverter.ToUInt32(buf);
+                        fs.Read(buf, 0, 4);
+                        mask.Y = BitConverter.ToUInt32(buf);
+                        fs.Read(buf, 0, 4);
+                        mask.Width = BitConverter.ToUInt32(buf);
+                        fs.Read(buf, 0, 4);
+                        mask.Height = BitConverter.ToUInt32(buf);
+                        fs.Read(buf, 0, 4);
+                        mask.Size = BitConverter.ToInt32(buf);
+
+                        byte[] encodeData = new byte[mask.Size];
+                        fs.Read(encodeData, 0, mask.Size);
+
+                        byte[] decodeData = new byte[524288 - mask.Size];
+                        //Array.Copy(encodeData, decodeData, mask.Size);
+                        int maskResult =this.DecodeMaskData(encodeData, decodeData);
+                        Console.WriteLine("读取完成:{0}, {1}" , mask, maskResult);
+
                     }
-                    
+
 
                 }
 
@@ -482,7 +497,172 @@ namespace MapReader
             }
             return true;
         }
+
+        // 解压MASK的代码
+        private int DecodeMaskData(byte[] ip, byte[] op)
+        {
+            int t = 0, o = 0, i = 0, m = 0;
+            int run = 1;
+            if (ip[i] > 17)
+            {
+                t = ip[i++] - 17;
+                if (t < 4)
+                {
+                    do
+                    {
+                        op[o++] = ip[i++];
+                    } while (--t > 0);
+
+                    t = ip[i++];
+                    run = 0;
+                }
+                else
+                {
+                    do
+                    {
+                        op[o++] = ip[i++];
+                    } while (--t > 0);
+                    run = 2;
+                }
+            }
+            while (true)
+            {
+                // 跳转
+                if (run == 1)
+                {
+                    t = ip[i++];
+                    if (t < 16)
+                    {
+                        if (t == 0)
+                        {
+                            while (ip[i++] == 0)
+                            {
+                                t += 255;
+                            }
+                            t = t + 15 + ip[i++];
+                        }
+                        t = t - 1 + 4;
+                        do
+                        {
+                            op[o++] = ip[i++];
+                        } while (--t > 0);
+                        run = 2;
+                    }
+                }
+
+                if (run == 2)
+                {
+                    run = 1;
+                    t = ip[i++];
+                    if (t < 16)
+                    {
+                        m = o - 0x0801 - (t >> 2) - (ip[i] << 2);
+                        ++i;
+                        op[o++] = op[m++];
+                        op[o++] = op[m++];
+                        op[o++] = op[m];
+
+                        t = (ip[ip.Length - 2]) & 3;
+                        if (t == 0)
+                        {
+                            continue;
+                        }
+                        do
+                        {
+                            op[o++] = ip[i++];
+                        } while (--t > 0);
+                        t = ip[i++];
+                    }
+                }
+                else
+                {
+                    run = 1;
+                }
+
+                while (true)
+                {
+                    bool go = false;
+                    if (t >= 64)
+                    {
+                        m = o - 1 - ((t >> 2) & 7) - (ip[i] << 3);
+                        ++i;
+                        t = (t >> 5) + 1;
+                        do
+                        {
+                            op[o++] = op[m++];
+                        } while (--t > 0);
+                        // goto match_done;
+                        go = true;
+                    }
+                    else if (t >= 32)
+                    {
+                        t &= 31;
+                        if (t == 0)
+                        {
+                            while (ip[i++] == 0)
+                            {
+                                t += 255;
+                            }
+                            t = t + 31 + ip[i++];
+                        }
+                        m = o - 1 - ((ip[i] | (ip[i + 1] << 8)) >> 2);
+                        i += 2; // short
+                    }
+                    else if (t >= 16)
+                    {
+                        m = o - ((t & 8) << 11);
+                        t &= 7;
+                        if (t == 0)
+                        {
+                            while (ip[i++] == 0)
+                            {
+                                t += 255;
+                            }
+                            t = t + 7 + ip[i++];
+                        }
+                        m -= ((ip[i] | (ip[i + 1] << 8)) >> 2);
+                        i += 2;
+
+                        if (m == o)
+                        {
+                            return o;
+                        }
+                        m -= 0x4000;
+                    }
+                    else
+                    {
+                        m = o - 1 - (t >> 2) - (ip[i++] << 2);
+                        op[o++] = op[m++];
+                        op[o++] = op[m];
+                        go = true; //goto match_done;
+                    }
+                    //
+                    if (!go)
+                    {
+                        t += 2;
+                        do
+                        {
+                            op[o++] = op[m++];
+                        } while (--t > 0);
+                    }
+                    else
+                    {
+                        // ::match_done::
+                        t = ip[i - 2] & 3;
+                        if (t == 0)
+                            break;
+                        do
+                        {
+                            op[o++] = ip[i++];
+                        } while (--t > 0);
+                        t = ip[i++];
+                    }
+                }
+            }
+        }
     }
+
+
 
     // 地图的数据
     public struct MapData
@@ -501,11 +681,12 @@ namespace MapReader
     }
 
     // MASK的数据结构（推测）
-    public struct MaskData {
-        public int Width;
-        public int Height;
-        public int X;
-        public int Y;
+    public struct MaskData
+    {
+        public uint X;
+        public uint Y;
+        public uint Width;
+        public uint Height;
         public int Size;
     }
 }
