@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace MapReader
@@ -170,10 +171,15 @@ namespace MapReader
                         byte[] encodeData = new byte[mask.Size];
                         fs.Read(encodeData, 0, mask.Size);
 
-                        byte[] decodeData = new byte[524288 - mask.Size];
-                        //Array.Copy(encodeData, decodeData, mask.Size);
-                        int maskResult =this.DecodeMaskData(encodeData, decodeData);
-                        Console.WriteLine("读取完成:{0}, {1}" , mask, maskResult);
+
+
+
+                        int alignWidth = (mask.Width / 4 + mask.Width % 4 != 0 ? 1 : 0) * 4;//以4对齐的宽度
+                        byte[] decodeData = new byte[alignWidth * mask.Height / 4];
+                        int maskResult = 0;
+
+                        maskResult = this.DecodeMaskData(encodeData, decodeData);
+                        Console.WriteLine("读取完成:{0}, {1}", mask, maskResult);
 
                     }
 
@@ -508,158 +514,270 @@ namespace MapReader
                 t = ip[i++] - 17;
                 if (t < 4)
                 {
-                    do
-                    {
-                        op[o++] = ip[i++];
-                    } while (--t > 0);
-
-                    t = ip[i++];
-                    run = 0;
+                    //goto match_next;
+                    run = -1;
                 }
-                else
+                do
                 {
-                    do
-                    {
-                        op[o++] = ip[i++];
-                    } while (--t > 0);
-                    run = 2;
-                }
+                    op[o++] = ip[i++];
+                } while (--t > 0);
+                //goto first_literal_run;
+                run = -2;
             }
+            // 第一个循环
             while (true)
             {
-                // 跳转
-                if (run == 1)
+                if (run != -1)
                 {
-                    t = ip[i++];
-                    if (t < 16)
+                    if (run != -2)
                     {
-                        if (t == 0)
-                        {
-                            while (ip[i++] == 0)
-                            {
-                                t += 255;
-                            }
-                            t = t + 15 + ip[i++];
-                        }
-                        t = t - 1 + 4;
-                        do
-                        {
-                            op[o++] = ip[i++];
-                        } while (--t > 0);
-                        run = 2;
-                    }
-                }
 
-                if (run == 2)
-                {
-                    run = 1;
-                    t = ip[i++];
-                    if (t < 16)
-                    {
-                        m = o - 0x0801 - (t >> 2) - (ip[i] << 2);
-                        ++i;
-                        op[o++] = op[m++];
-                        op[o++] = op[m++];
-                        op[o++] = op[m];
-
-                        t = (ip[ip.Length - 2]) & 3;
-                        if (t == 0)
-                        {
-                            continue;
-                        }
-                        do
-                        {
-                            op[o++] = ip[i++];
-                        } while (--t > 0);
                         t = ip[i++];
-                    }
-                }
-                else
-                {
-                    run = 1;
-                }
+                        if (t >= 16)
+                        {
+                            //goto match;
+                            run = -3;
+                        }
+                        if (run != -3)
+                        {
 
+                            if (t == 0)
+                            {
+                                while (ip[i++] == 0)
+                                {
+                                    t += 255;
+                                }
+
+                                t = t + 15 + ip[i++];
+                            }
+                            // 4个byte的赋值
+                            for (int skip = 0; skip < 4; ++skip)
+                            {
+                                op[o + skip] = ip[i + skip];
+                            }
+                            o += 4;
+                            i += 4;
+
+                            if (--t > 0)
+                            {
+                                if (t >= 4)
+                                {
+                                    do
+                                    {
+                                        for (int skip = 0; skip < 4; ++skip)
+                                        {
+                                            op[o + skip] = ip[i + skip];
+                                        }
+                                        o += 4;
+                                        i += 4;
+                                        t -= 4;
+                                    } while (t >= 4);
+                                    if (t > 0)
+                                    {
+                                        do
+                                        {
+                                            op[o++] = ip[i++];
+                                        } while (--t > 0);
+                                    }
+                                }
+                                else
+                                {
+                                    do
+                                    {
+                                        op[o++] = ip[i++];
+                                    } while (--t > 0);
+                                }
+                            }
+
+                        }
+                    }
+                    first_literal_run:
+                    if (run == -2)
+                    {
+                        run = 1;
+                    }
+                    if (run != -3)
+                    {
+                        t = ip[i++];
+                        if (t >= 16)
+                        {
+                            //goto match;
+                            run = -4;
+                        }
+                        if (run != -4)
+                        {
+                            m = o - 0x801;
+                            m -= t >> 2;
+                            m -= ip[i] << 2;
+                            ++i;
+                            op[o++] = op[m++];
+                            op[o++] = op[m++];
+                            op[o++] = op[m];
+
+                            //goto match_done:
+                            run = -5;
+                        }
+                    }
+
+                }
+                // 第二个死循环
                 while (true)
                 {
-                    bool go = false;
-                    if (t >= 64)
+                    if (run != -1 || run != -5)
                     {
-                        m = o - 1 - ((t >> 2) & 7) - (ip[i] << 3);
-                        ++i;
-                        t = (t >> 5) + 1;
-                        do
-                        {
-                            op[o++] = op[m++];
-                        } while (--t > 0);
-                        // goto match_done;
-                        go = true;
-                    }
-                    else if (t >= 32)
-                    {
-                        t &= 31;
-                        if (t == 0)
-                        {
-                            while (ip[i++] == 0)
-                            {
-                                t += 255;
-                            }
-                            t = t + 31 + ip[i++];
-                        }
-                        m = o - 1 - ((ip[i] | (ip[i + 1] << 8)) >> 2);
-                        i += 2; // short
-                    }
-                    else if (t >= 16)
-                    {
-                        m = o - ((t & 8) << 11);
-                        t &= 7;
-                        if (t == 0)
-                        {
-                            while (ip[i++] == 0)
-                            {
-                                t += 255;
-                            }
-                            t = t + 7 + ip[i++];
-                        }
-                        m -= ((ip[i] | (ip[i + 1] << 8)) >> 2);
-                        i += 2;
 
-                        if (m == o)
+                        match:
+                        if (run == -3 || run == -4)
                         {
-                            return o;
+                            run = 1;
                         }
-                        m -= 0x4000;
+                        if (t >= 64)
+                        {
+
+                            m = o - 1;
+                            m -= (t >> 2) & 7;
+                            m -= ip[i++] << 3;
+                            t = (t >> 5) - 1;
+
+                            //goto copy_match;
+                            run = -6;
+                        }
+                        else if (t >= 32)
+                        {
+                            t &= 31;
+                            if (t == 0)
+                            {
+                                while (ip[i++] == 0)
+                                {
+                                    t += 255;
+                                }
+                                t += 31 + ip[i++];
+                            }
+
+                            m = o - 1;
+                            byte[] tmpIp = new byte[2];
+                            Array.Copy(ip, i, tmpIp, 0, 2);
+                            ushort s = BitConverter.ToUInt16(tmpIp);
+                            m -= s >> 2;
+                            i += 2;
+
+                        }
+                        else if (t >= 16)
+                        {
+                            m = o - 1;
+                            m -= (t & 8) << 11;
+                            t &= 7;
+                            if (t == 0)
+                            {
+                                while (ip[i++] == 0)
+                                {
+                                    t += 255;
+                                }
+                                t += 7 + ip[i++];
+                            }
+                            byte[] tmpIp = new byte[2];
+                            Array.Copy(ip, i, tmpIp, 0, 2);
+                            ushort s = BitConverter.ToUInt16(tmpIp);
+                            m -= s >> 2;
+                            i += 2;
+                            if (m == o)
+                            {
+                                goto eof_found;
+                            }
+                            o -= 0x4000;
+                        }
+                        else
+                        {
+                            m = o - 1;
+                            m -= t >> 2;
+                            m -= ip[i] << 2;
+                            ++i;
+
+                            op[o++] = op[m++];
+                            op[o++] = op[m];
+                            //goto match_done;
+                            run = -7;
+
+                        }
                     }
-                    else
+                    if ((t >= 6 && (o - m) >= 4) && run != -1 && run != -5 && run != -6)
                     {
-                        m = o - 1 - (t >> 2) - (ip[i++] << 2);
-                        op[o++] = op[m++];
-                        op[o++] = op[m];
-                        go = true; //goto match_done;
-                    }
-                    //
-                    if (!go)
-                    {
-                        t += 2;
+
+                        for (int skip = 0; skip < 4; ++skip)
+                        {
+                            op[o + skip] = op[m + skip];
+                        }
+                        o += 4;
+                        m += 4;
+                        t -= 2;
                         do
                         {
-                            op[o++] = op[m++];
-                        } while (--t > 0);
+                            for (int skip = 0; skip < 4; ++skip)
+                            {
+                                op[o + skip] = op[m + skip];
+                            }
+                            o += 4;
+                            m += 4;
+                            t -= 4;
+                        } while (t >= 4);
+
+                        if (t > 0)
+                        {
+                            do
+                            {
+                                op[o++] = op[m++];
+                            } while (--t > 0);
+                        }
+
                     }
                     else
                     {
-                        // ::match_done::
-                        t = ip[i - 2] & 3;
-                        if (t == 0)
-                            break;
+                        if (run != -1)
+                        {
+                            if (run != -5 && run != -7)
+                            {
+                                copy_match:
+                                if (run == -6)
+                                {
+                                    run = 1;
+                                }
+                                op[o++] = op[m++];
+                                op[o++] = op[m++];
+
+                                do
+                                {
+                                    op[o++] = op[m++];
+                                } while (--t > 0);
+                            }
+                            match_done:
+                            if (run == -5 || run == -7)
+                            {
+                                run = 1;
+                            }
+                            t = ip[i - 2] & 3;
+                            if (t == 0) break;
+
+                        }
+
+                        match_next:
                         do
                         {
                             op[o++] = ip[i++];
+                            if (run == -1)
+                            {
+                                run = 1;
+                            }
                         } while (--t > 0);
                         t = ip[i++];
                     }
                 }
             }
+
+            eof_found:
+            return o;
         }
+
+
     }
 
 

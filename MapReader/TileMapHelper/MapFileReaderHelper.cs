@@ -18,7 +18,7 @@ namespace MapReader
             ReadGameMap readGameMap = new ReadGameMap();
 
             //readGameMap.LoadMap(@"E:\unity\project\2D TileMap Dev\Assets\Res\1002.map");
-            readGameMap.LoadMap(@"G:\0.perinalll\海外侠客岛\wdf\scene\1002.map");
+            readGameMap.LoadMap(@"E:\test\tes\1002.map");
 
             uint UnitTotal = readGameMap.m_SubMapTotal;
             uint m_MapWidth = readGameMap.m_MapWidth;
