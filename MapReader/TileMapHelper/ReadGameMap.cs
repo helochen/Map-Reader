@@ -2,6 +2,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using OpenCvSharp;
 
 namespace MapReader
 {
@@ -121,6 +122,10 @@ namespace MapReader
                 this.m_SubMapRowNum = (uint)MathF.Ceiling(m_MapHeight / m_SubMapHeight); // 计算子地图中的行数量
                 this.m_SubMapColNum = (uint)MathF.Ceiling(m_MapWidth / m_SubMapWidth); // 计算子地图中的列数量
 
+                int m_MapBmpWidth = (int)(m_SubMapColNum * 320);
+                int m_MapBmpHeight = (int)(m_SubMapRowNum * 240);
+
+
                 this.m_SubMapTotal = m_SubMapRowNum * m_SubMapColNum; // 计算地图中总的子地图数量
 
                 this.m_UnitIndexNum = m_SubMapTotal;
@@ -180,6 +185,10 @@ namespace MapReader
 
                         maskResult = this.DecodeMaskData(encodeData, decodeData);
                         Console.WriteLine("读取完成:{0}, {1}", mask, maskResult);
+                        // 获取整个图片的像素信息
+                        Mat wholeImg = OpenCvSharp.Cv2.ImRead(@"E:\test\cv\whole.jpg");
+                        Mat textMat = new Mat((int)mask.Height, (int)mask.Width, MatType.CV_8UC3, new Scalar(0,0,0));
+                        
 
                         // 输出MASK到TGA图像
                         uint pixel_num = mask.Width * mask.Height;
@@ -191,49 +200,20 @@ namespace MapReader
                             {
                                 int maskIndex = (h * alignWidth + w) * 2;
                                 byte maskValue = decodeData[maskIndex / 8];
-
                                 if ((maskValue & 3) == 3)
                                 {
                                     int mapX = (int)(mask.X + w); // 地图图像中的X位置
                                     int mapY = (int)(mask.Y + h); //地图图像中的Y位置
 
-                                    ushort dstPixel = 1;
-                                    pOutMaskBmp[(mask.Height - 1 - h) * mask.Width + w] = (uint)(0xFF000000 | ((dstPixel & 0x7C00) << 9) | ((dstPixel & 0x3E0) << 6) | ((dstPixel & 0x1F) << 3));
+                                    Vec3b vec = wholeImg.Get<Vec3b>(mapY, mapX);
+                                    textMat.Set<Vec3b>(h, w, vec);
 
                                 }
                             }
                         }
-
-                        // 保存TGA文件
-                        using (FileStream outFileStream = File.Create(@"E:\test\tes\decode\" + idx + ".tga"))
-                        {
-                            outFileStream.WriteByte(0);
-                            outFileStream.WriteByte(0);
-                            outFileStream.WriteByte((2));
-                            outFileStream.Write(BitConverter.GetBytes((ushort)0));
-                            outFileStream.Write(BitConverter.GetBytes((ushort)0));
-                            outFileStream.WriteByte(0);
-                            outFileStream.Write(BitConverter.GetBytes((ushort)0));
-                            outFileStream.Write(BitConverter.GetBytes((ushort)0));
-                            outFileStream.Write(BitConverter.GetBytes((ushort)mask.Width));
-                            outFileStream.Write(BitConverter.GetBytes((ushort)mask.Height));
-                            outFileStream.WriteByte(16);
-                            outFileStream.WriteByte(8);
-
-                            for (int i = 0; i < pOutMaskBmp.Length; i++)
-                            {
-                                outFileStream.Write(BitConverter.GetBytes(pOutMaskBmp[i]));
-                            }
-
-                            outFileStream.Flush();
-                            outFileStream.Close();
-                        }
+                        textMat.SaveImage(@"E:\test\tes\decode\t.jpg");
                     }
-
-
                 }
-
-
                 // TODO 仅大话3地图使用
 
 
@@ -680,12 +660,6 @@ namespace MapReader
                         }
                         if (t >= 64)
                         {
-
-                            /*m = o - 1;
-                            m -= (t >> 2) & 7;
-                            m -= ip[i++] << 3;
-                            */
-                            //m = o - 1 - _band(_rshift(t, 2), 7) - _lshift(ip[i], 3); i = i + 1
                             m = o - 1;
                             m -= ((t >> 2) & 7);
                             m -= ip[i] << 3;
