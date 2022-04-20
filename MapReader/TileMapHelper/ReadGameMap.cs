@@ -181,6 +181,53 @@ namespace MapReader
                         maskResult = this.DecodeMaskData(encodeData, decodeData);
                         Console.WriteLine("读取完成:{0}, {1}", mask, maskResult);
 
+                        // 输出MASK到TGA图像
+                        uint pixel_num = mask.Width * mask.Height;
+                        uint[] pOutMaskBmp = new uint[pixel_num];
+
+                        for (int h = 0; h < mask.Height; h++)
+                        {
+                            for (int w = 0; w < mask.Width; w++)
+                            {
+                                int maskIndex = (h * alignWidth + w) * 2;
+                                byte maskValue = decodeData[maskIndex / 8];
+
+                                if ((maskValue & 3) == 3)
+                                {
+                                    int mapX = (int)(mask.X + w); // 地图图像中的X位置
+                                    int mapY = (int)(mask.Y + h); //地图图像中的Y位置
+
+                                    ushort dstPixel = 1;
+                                    pOutMaskBmp[(mask.Height - 1 - h) * mask.Width + w] = (uint)(0xFF000000 | ((dstPixel & 0x7C00) << 9) | ((dstPixel & 0x3E0) << 6) | ((dstPixel & 0x1F) << 3));
+
+                                }
+                            }
+                        }
+
+                        // 保存TGA文件
+                        using (FileStream outFileStream = File.Create(@"E:\test\tes\decode\" + idx + ".tga"))
+                        {
+                            outFileStream.WriteByte(0);
+                            outFileStream.WriteByte(0);
+                            outFileStream.WriteByte((2));
+                            outFileStream.Write(BitConverter.GetBytes((ushort)0));
+                            outFileStream.Write(BitConverter.GetBytes((ushort)0));
+                            outFileStream.WriteByte(0);
+                            outFileStream.Write(BitConverter.GetBytes((ushort)0));
+                            outFileStream.Write(BitConverter.GetBytes((ushort)0));
+                            outFileStream.Write(BitConverter.GetBytes((ushort)mask.Width));
+                            outFileStream.Write(BitConverter.GetBytes((ushort)mask.Height));
+                            outFileStream.WriteByte(16);
+                            outFileStream.WriteByte(8);
+
+                            for (int i = 0; i < pOutMaskBmp.Length; i++)
+                            {
+                                outFileStream.Write(BitConverter.GetBytes(pOutMaskBmp[i]));
+                            }
+
+                            outFileStream.Flush();
+                            outFileStream.Close();
+                        }
                     }
 
 
@@ -812,5 +859,23 @@ namespace MapReader
         public uint Width;
         public uint Height;
         public int Size;
+    }
+
+    // TGA文件头
+    public struct STGA_HEADER
+    {
+        // TGA像素顺序：B G R A
+        public byte IdLength;              // 图像信息字段(默认:0)
+        public byte ColorMapType;          // 颜色表的类型（0或者1，0表示没有颜色表,1表示颜色表存在.格式 2,3,10 是无颜色表的，故一般为0）
+        public byte ImageType;             // 图像类型码(2-未压缩的RGB图像，3-未压缩的黑白图像，10-runlength编码的RGB图像)
+        public ushort ColorMapFirstIndex;        // 颜色表的索引(默认:0)
+        public ushort ColorMapLength;            // 颜色表的长度(默认:0)
+        public byte ColorMapEntrySize;     // 颜色表表项的为数(默认:0，支持16/24/32)
+        public ushort XOrigin;               // 图像X坐标的起始位置(默认:0)
+        public ushort YOrigin;               // 图像Y坐标的起始位置(默认:0)
+        public ushort ImageWidth;                // 图像的宽度
+        public ushort ImageHeight;           // 图像的高度
+        public byte PixelBits;             // 像素位数
+        public byte ImageDescruptor;       // 图像描述字符字节(默认:0，不支持16bit 565格式)
     }
 }
