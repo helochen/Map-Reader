@@ -173,8 +173,8 @@ namespace MapReader
 
 
 
-
-                        int alignWidth = (mask.Width / 4 + mask.Width % 4 != 0 ? 1 : 0) * 4;//以4对齐的宽度
+                        int delta = (mask.Width % 4 != 0 ? 1 : 0);
+                        int alignWidth = (int)((mask.Width / 4 + delta) * 4);//以4对齐的宽度
                         byte[] decodeData = new byte[alignWidth * mask.Height / 4];
                         int maskResult = 0;
 
@@ -591,7 +591,7 @@ namespace MapReader
 
                         }
                     }
-                    first_literal_run:
+                first_literal_run:
                     if (run == -2)
                     {
                         run = 1;
@@ -626,7 +626,7 @@ namespace MapReader
                     if (run != -1 || run != -5)
                     {
 
-                        match:
+                    match:
                         if (run == -3 || run == -4)
                         {
                             run = 1;
@@ -634,11 +634,16 @@ namespace MapReader
                         if (t >= 64)
                         {
 
-                            m = o - 1;
+                            /*m = o - 1;
                             m -= (t >> 2) & 7;
                             m -= ip[i++] << 3;
+                            */
+                            //m = o - 1 - _band(_rshift(t, 2), 7) - _lshift(ip[i], 3); i = i + 1
+                            m = o - 1;
+                            m -= ((t >> 2) & 7);
+                            m -= ip[i] << 3;
+                            ++i;
                             t = (t >> 5) - 1;
-
                             //goto copy_match;
                             run = -6;
                         }
@@ -647,9 +652,10 @@ namespace MapReader
                             t &= 31;
                             if (t == 0)
                             {
-                                while (ip[i++] == 0)
+                                while (ip[i] == 0)
                                 {
                                     t += 255;
+                                    i++;
                                 }
                                 t += 31 + ip[i++];
                             }
@@ -664,14 +670,15 @@ namespace MapReader
                         }
                         else if (t >= 16)
                         {
-                            m = o - 1;
+                            m = o;
                             m -= (t & 8) << 11;
                             t &= 7;
                             if (t == 0)
                             {
-                                while (ip[i++] == 0)
+                                while (ip[i] == 0)
                                 {
                                     t += 255;
+                                    i++;
                                 }
                                 t += 7 + ip[i++];
                             }
@@ -695,8 +702,8 @@ namespace MapReader
 
                             op[o++] = op[m++];
                             op[o++] = op[m];
-                            //goto match_done;
-                            run = -7;
+                            goto match_done;
+                            //run = -7;
 
                         }
                     }
@@ -736,7 +743,7 @@ namespace MapReader
                         {
                             if (run != -5 && run != -7)
                             {
-                                copy_match:
+                            copy_match:
                                 if (run == -6)
                                 {
                                     run = 1;
@@ -749,31 +756,30 @@ namespace MapReader
                                     op[o++] = op[m++];
                                 } while (--t > 0);
                             }
-                            match_done:
-                            if (run == -5 || run == -7)
-                            {
-                                run = 1;
-                            }
-                            t = ip[i - 2] & 3;
-                            if (t == 0) break;
 
                         }
-
-                        match_next:
-                        do
-                        {
-                            op[o++] = ip[i++];
-                            if (run == -1)
-                            {
-                                run = 1;
-                            }
-                        } while (--t > 0);
-                        t = ip[i++];
                     }
+                match_done:
+                    if (run == -5 || run == -7)
+                    {
+                        run = 1;
+                    }
+                    t = ip[i - 2] & 3;
+                    if (t == 0) break;
+                    match_next:
+                    do
+                    {
+                        op[o++] = ip[i++];
+                        if (run == -1)
+                        {
+                            run = 1;
+                        }
+                    } while (--t > 0);
+                    t = ip[i++];
                 }
             }
 
-            eof_found:
+        eof_found:
             return o;
         }
 
