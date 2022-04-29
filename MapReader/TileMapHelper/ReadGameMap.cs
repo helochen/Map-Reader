@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Text;
 using OpenCvSharp;
 
@@ -155,7 +154,7 @@ namespace MapReader
                         TmpMaskList[i] = BitConverter.ToUInt32(buf);
                     }
                     // 读取MASK数据
-                    for (int idx = 0; idx < 1; idx++)
+                    for (int idx = 0; idx < 50; idx++)
                     {
                         fs.Seek(TmpMaskList[idx], SeekOrigin.Begin);
                         Console.WriteLine("数据偏移量:{0} ", TmpMaskList[idx]);
@@ -187,7 +186,7 @@ namespace MapReader
                         Console.WriteLine("读取完成:{0}, {1}", mask, maskResult);
                         // 获取整个图片的像素信息
                         Mat wholeImg = OpenCvSharp.Cv2.ImRead(@"E:\test\cv\whole.jpg");
-                        Mat textMat = new Mat((int)mask.Height, (int)mask.Width, MatType.CV_8UC3, new Scalar(0,0,0));
+                        Mat textMat = new Mat((int)mask.Height, (int)mask.Width, MatType.CV_8UC4, new Scalar(0,0,0,0));
                         
 
                         // 输出MASK到TGA图像
@@ -200,18 +199,22 @@ namespace MapReader
                             {
                                 int maskIndex = (h * alignWidth + w) * 2;
                                 byte maskValue = decodeData[maskIndex / 8];
+                                int mapX = (int)(mask.X + w); // 地图图像中的X位置
+                                int mapY = (int)(mask.Y + h); //地图图像中的Y位置
+
                                 if ((maskValue & 3) == 3)
                                 {
-                                    int mapX = (int)(mask.X + w); // 地图图像中的X位置
-                                    int mapY = (int)(mask.Y + h); //地图图像中的Y位置
-
                                     Vec3b vec = wholeImg.Get<Vec3b>(mapY, mapX);
                                     textMat.Set<Vec3b>(h, w, vec);
 
                                 }
+                                else {
+                                    Vec4b vec = new Vec4b(0, 0, 0, 0);
+                                    textMat.Set<Vec4b>(h, w, vec);
+                                }
                             }
                         }
-                        textMat.SaveImage(@"E:\test\tes\decode\t.jpg");
+                        textMat.SaveImage(@"E:\test\tes\decode\"+idx+".png");
                     }
                 }
                 // TODO 仅大话3地图使用
