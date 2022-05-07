@@ -99,7 +99,8 @@ namespace MapReader.TileMapHelper
                         // 绘制图片
                         int[] pixels = this.ParsePixels(fs, offset, lineOffsets, frameWidth, frameHeight, headerSize);
 
-
+                        this.CreateImage(frameX, frameY, pixels, width, height);
+                        break;
                     }
                 }
             }
@@ -109,7 +110,18 @@ namespace MapReader.TileMapHelper
         private void CreateImage(int frameX, int frameY, int[] pixels, int width, int height) {
             Mat textMat = new Mat(height, width, MatType.CV_8UC4, new Scalar(0, 0, 0, 0));
             // TODO 写入像素
-
+            for (int y1 = 0; y1 < height && y1 + frameY < height; y1++)
+            {
+                for (int x1 = 0; x1 < width && x1 + frameX < width; x1++)
+                {
+                    int r = ((pixels[y1 * width + x1] >> 11) & 0x1F) << 3;
+                    int g = ((pixels[y1 * width + x1] >> 5) & 0x3F) << 2;
+                    int b = (pixels[y1 * width + x1] & 0x1F) << 3;
+                    //RGBA
+                    Vec3i vec4 = new Vec3i(r,g,b);
+                    textMat.Set<Vec3i>( x1, y1,vec4);
+                }
+            }
             textMat.SaveImage(@"E:\test\tes\decode\player.png");
         }
 
