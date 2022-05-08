@@ -95,37 +95,44 @@ namespace MapReader.TileMapHelper
                         {
                             lineOffsets[l] = FileByteReaderUtil.ReadInt32(fs);
                         }
+                        // 新建帧对象
+                        WasFrame frame = new WasFrame(frameX, frameY, frameWidth, frameHeight, delay,
+                            offset, lineOffsets);
 
                         // 绘制图片
                         int[] pixels = this.ParsePixels(fs, offset, lineOffsets, frameWidth, frameHeight, headerSize);
 
-                        this.CreateImage(frameX, frameY, pixels, width, height);
-                        break;
+                        this.CreateImage(refPixelX - frameX, refPixelY - frameY, pixels, frameWidth, frameHeight, height ,width);
+                          
                     }
                 }
             }
 
         }
 
-        private void CreateImage(int frameX, int frameY, int[] pixels, int width, int height) {
+        private void CreateImage(int frameX, int frameY, int[] pixels, int frameWidth, int frameHeigt, int height , int width) {
             Mat textMat = new Mat(height, width, MatType.CV_8UC4, new Scalar(0, 0, 0, 0));
             // TODO 写入像素
-            for (int y1 = 0; y1 < height && y1 + frameY < height; y1++)
+            for (int y1 = 0; y1 < frameHeigt && y1 + frameY < height; y1++)
             {
-                for (int x1 = 0; x1 < width && x1 + frameX < width; x1++)
+                for (int x1 = 0; x1 < frameWidth && x1 + frameX < width; x1++)
                 {
-                    int r = ((pixels[y1 * width + x1] >> 11) & 0x1F) << 3;
-                    int g = ((pixels[y1 * width + x1] >> 5) & 0x3F) << 2;
-                    int b = (pixels[y1 * width + x1] & 0x1F) << 3;
+                    int r = ((pixels[y1 * frameWidth + x1] >> 11) & 0x1F) << 3;
+                    int g = ((pixels[y1 * frameWidth + x1] >> 5) & 0x3F) << 2;
+                    int b = (pixels[y1 * frameWidth + x1] & 0x1F) << 3;
+                    int a = ((pixels[y1 * frameWidth + x1] >> 16) & 0x1f) << 3;
+
                     //RGBA
-                    Vec3i vec4 = new Vec3i(r,g,b);
-                    textMat.Set<Vec3i>( x1, y1,vec4);
+                    Vec4b vec4 = new Vec4b( (byte)b, (byte)g, (byte)r, (byte)a);
+                    textMat.Set<Vec4b>(y1 + frameY, x1 + frameX, vec4);
                 }
             }
-            textMat.SaveImage(@"E:\test\tes\decode\player.png");
+            textMat.SaveImage(@"E:\test\was\player"+idex++ +".png");
         }
 
-        private int[] ParsePixels(FileStream fs, int frameOffset, int[] lineOffsets, int frameWidth, int frameHeight, int headerSize)
+        int idex = 0;
+        private int[] ParsePixels(FileStream fs, int frameOffset, int[] lineOffsets,
+            int frameWidth, int frameHeight, int headerSize)
         {
             int[] pixels = new int[frameHeight * frameWidth];
 
@@ -146,6 +153,7 @@ namespace MapReader.TileMapHelper
                             {
                                 index = fs.ReadByte();
                                 c = palette[index];
+                                pixels[y * frameWidth + x++] = c + ((b & 0x1F) << 16);
                             }
                             else if (b != 0)
                             {
