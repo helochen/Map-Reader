@@ -111,7 +111,7 @@ namespace MapReader.TileMapHelper
         }
 
         private void CreateImage(int frameX, int frameY, int[] pixels, int frameWidth, int frameHeigt, int height , int width) {
-            Mat textMat = new Mat(height, width, MatType.CV_8UC4, new Scalar(0, 0, 0, 0));
+            Mat textMat = new Mat(frameHeigt, frameWidth, MatType.CV_8UC4, new Scalar(0, 0, 0, 0));
             // TODO 写入像素
             for (int y1 = 0; y1 < frameHeigt && y1 + frameY < height; y1++)
             {
@@ -124,7 +124,7 @@ namespace MapReader.TileMapHelper
 
                     //RGBA
                     Vec4b vec4 = new Vec4b( (byte)b, (byte)g, (byte)r, (byte)a);
-                    textMat.Set<Vec4b>(y1 + frameY, x1 + frameX, vec4);
+                    textMat.Set<Vec4b>(y1 , x1 , vec4);
                 }
             }
             textMat.SaveImage(@"E:\test\was\player"+idex++ +".png");
